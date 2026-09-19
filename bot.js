@@ -283,12 +283,34 @@ async function allocateViaAPI(page, signupData) {
   return result;
 }
 
+async function runWorker(workerId, tasks, useHeadless, useDefaultUsername, results) {
+  const browser = await puppeteer.launch({
+    headless: useHeadless,
+    defaultViewport: { width: 1280, height: 800 },
+    args: ['--start-maximized', '--no-sandbox', '--disable-dev-shm-usage']
+  });
+
+  while (true) {
+    const task = tasks.shift();
+    if (!task) break;
+    const { index, total } = task;
+    const result = await createSingleAccount(browser, index, total, useDefaultUsername);
+    if (result) results.sukses++;
+    else results.gagal++;
+  }
+
+  await browser.close();
+}
+
 async function main() {
   const modeInput = await askQuestion('Mode browser? (1: Headless, 2: Tampilkan browser): ');
   const useHeadless = modeInput.trim() !== '2';
 
   const usernameInput = await askQuestion('Username? (1: Bawaan website, 2: Random): ');
   const useDefaultUsername = usernameInput.trim() !== '2';
+
+  const threadInput = await askQuestion('Jumlah thread/worker? (default: 1): ');
+  const threads = Math.max(1, parseInt(threadInput, 10) || 1);
 
   const input = await askQuestion('Berapa akun yang ingin dibuat? ');
   const total = parseInt(input, 10);
@@ -299,27 +321,24 @@ async function main() {
   }
 
   console.log(`\nMode: ${useHeadless ? 'Headless' : 'Browser tampil'}`);
+  console.log(`Thread: ${threads}`);
   console.log(`Membuat ${total} akun...\n`);
 
-  const browser = await puppeteer.launch({
-    headless: useHeadless,
-    defaultViewport: { width: 1280, height: 800 },
-    args: ['--start-maximized']
-  });
-
-  let sukses = 0;
-  let gagal = 0;
-
+  const tasks = [];
   for (let i = 1; i <= total; i++) {
-    const result = await createSingleAccount(browser, i, total, useDefaultUsername);
-    if (result) sukses++;
-    else gagal++;
+    tasks.push({ index: i, total });
   }
 
-  await browser.close();
+  const results = { sukses: 0, gagal: 0 };
+  const workers = [];
+  for (let w = 0; w < threads; w++) {
+    workers.push(runWorker(w + 1, tasks, useHeadless, useDefaultUsername, results));
+  }
+
+  await Promise.all(workers);
 
   console.log(`\n===========================`);
-  console.log(`Sukses: ${sukses} | Gagal: ${gagal} | Total: ${total}`);
+  console.log(`Sukses: ${results.sukses} | Gagal: ${results.gagal} | Total: ${total}`);
   console.log(`===========================`);
 }
 

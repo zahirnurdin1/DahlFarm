@@ -74,4 +74,3 @@ Berapa akun yang ingin dibuat?
 ## Disclaimer
 
 Tool ini dibuat untuk keperluan edukasi. Gunakan dengan bijak dan tanggung jawab sendiri.
-"# DahlFarm" 
